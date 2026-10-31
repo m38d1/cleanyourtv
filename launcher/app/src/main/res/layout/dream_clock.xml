@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Screensaver (ClockDream): clock and date that drift around a black screen over an ambient glow. -->
+<!-- Screensaver (ClockDream): clock and date that drift around a black screen over an ambient glow or a photo. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -11,6 +11,22 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:scaleType="centerCrop"
+        android:importantForAccessibility="no" />
+
+    <!-- clock_photos: the second layer the next bundled picture fades in on, over the one showing. -->
+    <ImageView
+        android:id="@+id/dreamAmbientTop"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:importantForAccessibility="no" />
+
+    <!-- The soft darkening behind the clock and date: a full-screen radial gradient whose centre follows the
+         block, so a bright picture stays vivid everywhere but under the text (ClockScene). -->
+    <View
+        android:id="@+id/dreamScrim"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
         android:importantForAccessibility="no" />
 
     <LinearLayout
@@ -34,6 +50,10 @@
                 android:textSize="120sp"
                 android:fontFamily="@string/font_extralight"
                 android:letterSpacing="-0.04"
+                android:shadowColor="#99000000"
+                android:shadowDx="0"
+                android:shadowDy="4"
+                android:shadowRadius="24"
                 android:includeFontPadding="false" />
 
             <TextClock
@@ -46,8 +66,30 @@
                 android:textSize="22sp"
                 android:fontFamily="@string/font_medium"
                 android:letterSpacing="0.08"
+                android:shadowColor="#99000000"
+                android:shadowDx="0"
+                android:shadowDy="3"
+                android:shadowRadius="14"
                 android:textAllCaps="true" />
         </LinearLayout>
+
+        <!-- shamsi_date: the Solar Hijri date above the Gregorian one; gone when the theme turns it off. -->
+        <TextView
+            android:id="@+id/dreamShamsi"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:layout_marginTop="6dp"
+            android:textColor="#B3FFFFFF"
+            android:textSize="20sp"
+            android:fontFamily="@string/font_regular"
+            android:letterSpacing="0.12"
+            android:shadowColor="#99000000"
+            android:shadowDx="0"
+            android:shadowDy="3"
+            android:shadowRadius="14"
+            android:textAllCaps="true"
+            android:visibility="gone" />
 
         <TextClock
             android:layout_width="wrap_content"
@@ -60,6 +102,27 @@
             android:textSize="18sp"
             android:fontFamily="@string/font_regular"
             android:letterSpacing="0.14"
+            android:shadowColor="#99000000"
+            android:shadowDx="0"
+            android:shadowDy="3"
+            android:shadowRadius="14"
             android:textAllCaps="true" />
+
+        <!-- weather_line: the same live reading Home shows, under the date (ClockScene fills it). -->
+        <TextView
+            android:id="@+id/dreamWeather"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:layout_marginTop="6dp"
+            android:textColor="#99FFFFFF"
+            android:textSize="17sp"
+            android:fontFamily="@string/font_regular"
+            android:letterSpacing="0.06"
+            android:shadowColor="#99000000"
+            android:shadowDx="0"
+            android:shadowDy="3"
+            android:shadowRadius="14"
+            android:visibility="gone" />
     </LinearLayout>
 </FrameLayout>

@@ -79,6 +79,30 @@ final class VpnBadge extends ReplacementSpan {
         return focused ? INK_OFF : RED;
     }
 
+    /**
+     * vpn_network_green: the network pill while a VPN is up. Solid green with the dark ink at rest, so the tunnel
+     * shows at a glance; the usual near-white fill while focused, like every other pill.
+     */
+    static StateListDrawable networkPillBackground(float density) {
+        StateListDrawable bg = new StateListDrawable();
+        GradientDrawable focused = new GradientDrawable();
+        focused.setColor(0xF5FFFFFF);
+        focused.setCornerRadius(21 * density);
+        bg.addState(new int[]{android.R.attr.state_focused}, focused);
+        GradientDrawable rest = new GradientDrawable();
+        rest.setColor(GREEN);
+        rest.setCornerRadius(21 * density);
+        bg.addState(new int[0], rest);
+        return bg;
+    }
+
+    /** vpn_network_green: the dark ink that reads on the green pill, also on the focused white one. */
+    static android.content.res.ColorStateList networkPillInk() {
+        return new android.content.res.ColorStateList(
+                new int[][]{new int[]{android.R.attr.state_focused}, new int[0]},
+                new int[]{0xFF111111, INK});
+    }
+
     private static GradientDrawable pillShape(boolean up, float density) {
         GradientDrawable shape = new GradientDrawable();
         shape.setColor(up ? GREEN : RED);

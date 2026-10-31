@@ -88,11 +88,13 @@ public class GlassView extends View {
 
         // Outer glow: thin rings across the inset, each a little fainter, so it fades out smoothly. Three wide
         // strokes left visible bands once the glow took an app's colour at a stronger alpha. The hardware layer
-        // caches the result, so the rings cost one draw, not one per frame of the spring.
-        if (!flat || halo) {
+        // caches the result, so the rings cost one draw, not one per frame of the spring. Only the halo style wears
+        // it: past the rim the glow read as the glass overhanging a dark banner, and clipped inside it read as a
+        // second frame, so the glass and rim styles end at the rim (which is bright enough on its own).
+        if (halo) {
             int rings = 12;
             float step = inset / rings;
-            int alpha = flat ? glowAlpha / 2 : glowAlpha;
+            int alpha = glowAlpha / 2;
             glow.setStrokeWidth(step + 0.5f);
             for (int i = 0; i < rings; i++) {
                 float o = step * (i + 0.5f);

@@ -321,6 +321,25 @@
                 android:focusable="false"
                 android:visibility="gone" />
 
+            <!-- Local build: live weather under the clock (weather_line in config.xml). Gone until the
+                 first successful reading, so nothing moves while it loads. -->
+            <TextView
+                android:id="@+id/weatherLine"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_below="@id/stats"
+                android:layout_alignStart="@id/leftBlock"
+                android:layout_marginTop="2dp"
+                android:singleLine="true"
+                android:ellipsize="end"
+                android:gravity="left"
+                android:textColor="#D9FFFFFF"
+                android:textSize="14sp"
+                android:fontFamily="@string/font_medium"
+                android:letterSpacing="0.04"
+                android:focusable="false"
+                android:visibility="gone" />
+
             <LinearLayout
                 android:id="@+id/topButtons"
                 android:layout_width="wrap_content"
@@ -342,7 +361,7 @@
                 <TextView
                     android:id="@+id/btnWifi"
                     style="@style/TopButton"
-                    android:maxWidth="180dp"
+                    android:maxWidth="240dp"
                     android:singleLine="true"
                     android:ellipsize="end"
                     android:text="@string/wifi"

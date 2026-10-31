@@ -194,6 +194,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private boolean lunar;
     private int lunarOffset;
     private TextView stats;
+    /** Local build: live weather under the clock (weather_line in config.xml). */
+    private TextView weatherLine;
+    private final WeatherLine weather = new WeatherLine();
+    /** Local build: the round-trip time after the network name (wifi_ping in config.xml). */
+    private final WifiPing ping = new WifiPing();
+    private int pingMs = -1;
     private List<RaceWeekend.Race> raceCalendar;
     private View racePanel;
     private TextView raceKicker, raceHeadline, raceSessions;
@@ -214,6 +220,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** Optional time-of-day backdrop (config.xml, sky_intensity); 0 keeps it hidden. */
     private SkyView sky;
     private String vpnApp;
+    /** A headless VPN start is running (its thread brings the service up and asks the core to start). */
+    private boolean vpnBusy;
     /** vpn_pill: the VPN shown as its own pill (btnVpn) instead of a badge in the network pill. Off with top_menu. */
     private boolean vpnPill;
     private TextView btnVpn;
@@ -223,6 +231,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private boolean iconOnlyVpn;
     private Drawable.ConstantState vpnPlainBackground;
     private ColorStateList vpnPlainInk;
+    /** vpn_network_green: the network pill turns green while a VPN is up, with the plain look saved here. */
+    private boolean vpnNetworkGreen;
+    private Drawable.ConstantState wifiPlainBackground;
+    private ColorStateList wifiPlainText, wifiPlainIconTint;
+    /** Whether the network pill currently wears the green VPN look. */
+    private boolean wifiGreen;
     private SpringAnimation springX, springY;
     private float glassTargetX, glassTargetY;
     // How far the grid has scrolled the glass. springY works without it, in grid content space, so a
@@ -546,6 +560,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         btnWifi = findViewById(R.id.btnWifi);
         shamsiDate = findViewById(R.id.shamsiDate);
         stats = findViewById(R.id.stats);
+        weatherLine = findViewById(R.id.weatherLine);
         raceCalendar = cfg.raceCalendar;
         racePanel = findViewById(R.id.racePanel);
         raceKicker = findViewById(R.id.raceKicker);
@@ -578,6 +593,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         vpnApp = cfg.vpnApp;
         vpnPill = cfg.vpnPill && !cfg.topMenu;
+        vpnNetworkGreen = !vpnPill && getResources().getBoolean(R.bool.vpn_network_green);
         btnVpn = findViewById(R.id.btnVpn);
         moduleCards = cfg.moduleCards;
         hiddenApps = new HashSet<>(cfg.hiddenApps);
@@ -1093,6 +1109,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             pillsShown = true;
         }
         if (showStats) startStats();
+        if (getResources().getBoolean(R.bool.weather_line)) startWeather();
+        if (getResources().getBoolean(R.bool.wifi_ping)) startPing();
         if (gameDay != null) gameDay.start();
         sky.update();
         wallpaperPlayer.start();
@@ -1278,6 +1296,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         handler.removeCallbacks(openWhenOnline);
         startPending = null;   // leaving Home before the network came back: the boot's app stays closed
         stopStats();
+        weather.stop();
+        ping.stop();
         if (gameDay != null) gameDay.stop();
         handler.removeCallbacks(turnTick);
         if (lamp != null) lamp.stop();
@@ -2185,6 +2205,29 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     // ---- optional system stats (config.xml show_stats) --------------------------------------------
 
+    private void startWeather() {
+        String url = WeatherLine.url(getResources());
+        // The last reading, so the line is there as soon as Home comes up after a reboot, while the TV's
+        // network is still coming up and the first fetch has nothing to connect to.
+        String saved = getSharedPreferences("weather", MODE_PRIVATE).getString("line", "");
+        if (!saved.isEmpty()) {
+            weatherLine.setText(saved);
+            weatherLine.setVisibility(View.VISIBLE);
+        }
+        weather.start(url, getString(R.string.weather_place), line -> {
+            weatherLine.setText(line);
+            weatherLine.setVisibility(View.VISIBLE);
+            getSharedPreferences("weather", MODE_PRIVATE).edit().putString("line", line).apply();
+        });
+    }
+
+    private void startPing() {
+        ping.start(ms -> {
+            pingMs = ms;
+            updateWifiLabel();
+        });
+    }
+
     /** Background reader. Started only while Home is resumed and show_stats is on. */
     private HandlerThread statsThread;
     /** The current run's handler; a run whose handler is no longer this one stops (volatile: read off-thread). */
@@ -2867,6 +2910,17 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** Shows the Wi-Fi network name on the button when we can read it, otherwise the connection type. */
     @SuppressWarnings("deprecation")
     private void updateWifiLabel() {
+        if (vpnBusy) {
+            // The headless start is bringing the tunnel up: say so instead of the network name, which would
+            // suggest the pill did nothing. The VPN network callback redraws it the moment the tunnel is up.
+            String label = getString(R.string.vpn_connecting);
+            if (!TextUtils.equals(btnWifi.getText(), label)) btnWifi.setText(label);
+            if (wifiIconOnly) {
+                btnWifi.setContentDescription(label);
+                btnWifi.setText(null);
+            }
+            return;
+        }
         String text = getString(R.string.wifi);
         boolean vpn = false, online = false, validated = false;
         int icon = R.drawable.ic_wifi;
@@ -2912,36 +2966,49 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             }
         } catch (Exception ignored) {
         }
+        // wifi_ping: the link's round-trip time after the name, once it has been measured.
+        String ping = online && pingMs >= 0 ? pingMs + "ms" : "";
         // With a VPN app configured, a VPN that is down matters too: show a red "VPN off" capsule then.
         boolean vpnDown = !vpn && online && !vpnApp.isEmpty();
+        boolean green = vpnNetworkGreen && vpn;
         if (vpnPill) updateVpnPill(vpn);
+        String badge = null;
+        VpnBadge span = null;
         if ((vpn || vpnDown) && !vpnPill) {
             // Network name, then the green lock-and-VPN (or red "VPN off") capsule drawn in place of the word.
-            String badge = getString(vpn ? R.string.vpn : R.string.vpn_off);
-            VpnBadge span = new VpnBadge(vpn ? getDrawable(R.drawable.ic_lock) : null, density);
-            // The pill has a maximum width and ellipsizes at the end, which would cut the badge off after
-            // a long network name, so shorten the name to whatever room the badge leaves. The Wi-Fi icon and its
-            // gap are counted by hand: until the pill has a resolved layout direction (the first call, from
-            // onResume, runs before that) getTotalPaddingStart/End leave the compound drawables out, which
-            // left the name about 31dp too much room and the badge cut off.
-            TextPaint paint = btnWifi.getPaint();
-            Drawable[] compound = btnWifi.getCompoundDrawablesRelative();
-            int iconRoom = compound[0] != null ? compound[0].getIntrinsicWidth() + btnWifi.getCompoundDrawablePadding() : 0;
-            float room = btnWifi.getMaxWidth() - btnWifi.getPaddingStart() - btnWifi.getPaddingEnd() - iconRoom
-                    - span.getSize(paint, badge, 0, badge.length(), null) - paint.measureText(" ") - 2 * density;
-            String name = TextUtils.ellipsize(text, paint, Math.max(0, room), TextUtils.TruncateAt.END).toString();
-            // A long badge ("VPN отключён") can leave room for a stub like "MT…", which says nothing and, after
-            // rounding, can push the badge itself out of the pill. Show the badge alone then. On Ethernet the
-            // icon already names the link, and "Ethernet" cut to "Ethe…" or not depended on the font size (#961),
-            // so Ethernet always shows the icon and the badge alone.
-            // The space stays even then: a line holding only the span gets no font metrics and collapses.
-            boolean stub = name.length() < text.length() && name.length() < 5;
-            text = stub || icon == R.drawable.ic_ethernet ? "" : name;
-            SpannableString label = new SpannableString(text + " " + badge);
-            label.setSpan(span, text.length() + 1, label.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            badge = getString(vpn ? R.string.vpn : R.string.vpn_off);
+            span = new VpnBadge(vpn ? getDrawable(R.drawable.ic_lock) : null, density);
+        }
+        // The ping and the badge are never cut: the network name gives up whatever room they need and is shortened
+        // with an ellipsis, since the name is the part that can still be guessed. The Wi-Fi icon and its gap are
+        // counted by hand: until the pill has a resolved layout direction (the first call, from onResume, runs
+        // before that) getTotalPaddingStart/End leave the compound drawables out, which left the name about 31dp
+        // too much room and the tail cut off.
+        TextPaint paint = btnWifi.getPaint();
+        Drawable[] compound = btnWifi.getCompoundDrawablesRelative();
+        int iconRoom = compound[0] != null ? compound[0].getIntrinsicWidth() + btnWifi.getCompoundDrawablePadding() : 0;
+        float space = paint.measureText(" ");
+        float tailRoom = ping.isEmpty() ? 0 : paint.measureText(ping) + space;
+        if (span != null) tailRoom += span.getSize(paint, badge, 0, badge.length(), null) + space;
+        float room = btnWifi.getMaxWidth() - btnWifi.getPaddingStart() - btnWifi.getPaddingEnd() - iconRoom
+                - tailRoom - 10 * density;   // slack: letter spacing and rounding, or the pill re-ellipsizes the tail
+        String name = TextUtils.ellipsize(text, paint, Math.max(0, room), TextUtils.TruncateAt.END).toString();
+        // A long badge ("VPN отключён") can leave room for a stub like "MT…", which says nothing and, after
+        // rounding, can push the badge itself out of the pill. On Ethernet the icon already names the link, and
+        // "Ethernet" cut to "Ethe…" or not depended on the font size (#961), so a badge there shows alone. The
+        // ping stays either way.
+        if (span != null && ((name.length() < text.length() && name.length() < 5) || icon == R.drawable.ic_ethernet)) {
+            name = "";
+        }
+        String head = name.isEmpty() ? ping : ping.isEmpty() ? name : name + " \u00B7 " + ping;
+        if (span != null) {
+            // The space stays even with no name and no ping: a line holding only the span gets no font metrics
+            // and collapses.
+            SpannableString label = new SpannableString(head + " " + badge);
+            label.setSpan(span, head.length() + 1, label.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
             if (!TextUtils.equals(btnWifi.getText(), label)) btnWifi.setText(label);
-        } else if (!TextUtils.equals(btnWifi.getText(), text)) {
-            btnWifi.setText(text);
+        } else if (!TextUtils.equals(btnWifi.getText(), head)) {
+            btnWifi.setText(head);
         }
         if (wifiIconOnly) {
             btnWifi.setContentDescription(btnWifi.getText());
@@ -2959,8 +3026,27 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             ColorStateList tint = online ? wifiOnlineTint : wifiPlainTint;
             // wifi_status_warnings: orange while connected but not validated (a captive portal), red while offline.
             if (wifiNoInternetTint != null) tint = !online ? wifiOfflineTint : validated ? wifiOnlineTint : wifiNoInternetTint;
-            if (wifiOnlineTint != null && btnWifi.getCompoundDrawableTintList() != tint) {
+            if (!green && wifiOnlineTint != null && btnWifi.getCompoundDrawableTintList() != tint) {
                 btnWifi.setCompoundDrawableTintList(tint);
+            }
+        }
+        // vpn_network_green: while a VPN is up the whole network pill wears the green, dark ink on it, so the
+        // tunnel shows at a glance; its plain glass look and colours come back the moment the VPN drops.
+        if (green != wifiGreen) {
+            wifiGreen = green;
+            if (green) {
+                wifiPlainBackground = btnWifi.getBackground().getConstantState();
+                wifiPlainText = btnWifi.getTextColors();
+                wifiPlainIconTint = btnWifi.getCompoundDrawableTintList();
+                btnWifi.setBackground(VpnBadge.networkPillBackground(density));
+                btnWifi.setTextColor(VpnBadge.networkPillInk());
+                btnWifi.setCompoundDrawableTintList(VpnBadge.networkPillInk());
+            } else {
+                if (wifiPlainBackground != null) {
+                    btnWifi.setBackground(wifiPlainBackground.newDrawable(getResources()));
+                }
+                btnWifi.setTextColor(wifiPlainText);
+                btnWifi.setCompoundDrawableTintList(wifiPlainIconTint);
             }
         }
     }
@@ -3073,12 +3159,67 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     /**
-     * The network pill opens the VPN app when one is configured and installed, otherwise Wi-Fi settings. With
+     * The network pill toggles the VPN. While a VPN is up vpn_toggle_activity stops it and its service; while none is,
+     * the same activity brings the service up and the core is then asked to start over its local gRPC port
+     * (VpnDaemon), so the app never has to appear. Falls back to opening the VPN app, then Wi-Fi settings. With
      * vpn_pill the VPN app has its own pill, so this one always opens Wi-Fi settings.
      */
     private void openNetworkPill() {
-        Intent i = vpnPill ? null : vpnAppIntent();
-        open(i != null ? i : systemIntent(Settings.ACTION_WIFI_SETTINGS));
+        if (!vpnPill) {
+            Intent toggle = vpnToggleIntent();
+            if (toggle != null) {
+                if (VpnDaemon.vpnUp(this)) {
+                    open(toggle);
+                    return;
+                }
+                if (startVpnHeadless(toggle)) return;
+            }
+            Intent app = vpnAppIntent();
+            if (app != null) {
+                open(app);
+                return;
+            }
+        }
+        open(systemIntent(Settings.ACTION_WIFI_SETTINGS));
+    }
+
+    /**
+     * Starts the tunnel without the VPN app's UI: vpn_daemon_port in a background thread, since bringing the service
+     * up and waiting for the tunnel take seconds. False only when the theme has no daemon configured, so the caller
+     * can open the app instead; a failed start opens the app once the attempt ends.
+     */
+    private boolean startVpnHeadless(Intent toggle) {
+        int port = getResources().getInteger(R.integer.vpn_daemon_port);
+        if (port <= 0) return false;
+        if (vpnBusy) return true;   // a start is already under way
+        vpnBusy = true;
+        updateWifiLabel();
+        new Thread(() -> {
+            boolean started = VpnDaemon.start(this, toggle, port);
+            runOnUiThread(() -> {
+                vpnBusy = false;
+                updateWifiLabel();
+                if (started || isFinishing() || isDestroyed()) return;
+                Intent app = vpnAppIntent();
+                if (app != null) open(app);
+            });
+        }, "vpn-start").start();
+        return true;
+    }
+
+    /** vpn_toggle_activity's exported toggle activity, or null when it is not set, installed or not exported. */
+    private Intent vpnToggleIntent() {
+        String name = getString(R.string.vpn_toggle_activity).trim();
+        if (vpnApp.isEmpty() || name.isEmpty()) return null;
+        ComponentName component = ComponentName.unflattenFromString(name);
+        if (component == null || !vpnApp.equals(component.getPackageName())) return null;
+        try {
+            if (!getPackageManager().getActivityInfo(component, 0).exported) return null;
+        } catch (PackageManager.NameNotFoundException e) {
+            return null;
+        }
+        return new Intent(Intent.ACTION_MAIN).setComponent(component)
+                .addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
     }
 
     /** vpn_app's launch intent, or null when none is set or it is not installed. */

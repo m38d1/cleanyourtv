@@ -247,7 +247,7 @@
 
     <!-- Show the Solar Hijri (Shamsi) date used in Iran and Afghanistan, e.g. "27 Mehr 1405", above the
          Gregorian date. -->
-    <bool name="shamsi_date">false</bool>
+    <bool name="shamsi_date">true</bool>
     <!-- Lunisolar (Vietnamese / Chinese / Korean) date under the date; config.json lunar_date, lunar_utc_offset (7, 8 or 9, default by locale). -->
     <bool name="lunar_date">false</bool>
     <!-- The date (with the Shamsi and lunar lines) on its own line under the clock instead of beside it, for a top bar
@@ -269,7 +269,14 @@
     <!-- Optional VPN app the network pill opens (hold the pill for Wi-Fi settings), e.g. the package of the
          VPN you use. Empty: the pill opens Wi-Fi settings. The green VPN badge shows for any VPN either way;
          with an app set here, a red "VPN off" badge also shows while no VPN is up. -->
-    <string name="vpn_app" translatable="false"></string>
+    <string name="vpn_app" translatable="false">app.hiddify.com</string>
+    <!-- Pressing the network pill toggles the VPN through this exported activity of vpn_app instead of opening the
+         app. Hiddify's ShortcutActivity switches the tunnel on and off and hides itself again. Empty opens vpn_app. -->
+    <string name="vpn_toggle_activity" translatable="false">app.hiddify.com/com.hiddify.hiddify.ShortcutActivity</string>
+    <!-- The toggle activity only starts Hiddify's background service; the tunnel itself is started by the app over
+         the core's local gRPC port (Hiddify 4.1.1: 127.0.0.1:17079), and the core reuses the config it started
+         last. 0 only opens the app. -->
+    <integer name="vpn_daemon_port">17079</integer>
     <!-- The VPN as its own pill after the network pill, instead of a badge inside it: solid green with a lock while a
          VPN is up, solid red "VPN off" while none is and vpn_app is installed. Pressing it opens vpn_app (without it,
          the App library, or VPN settings when app_library is off), and the network pill then always opens Wi-Fi
@@ -278,6 +285,10 @@
          the app says disconnected (it holds the tunnel to block traffic), so the pill stays green then. Can also be
          set with "vpn_pill" in a theme. -->
     <bool name="vpn_pill">false</bool>
+    <!-- Local build: while a VPN is up, the whole network pill (Wi-Fi name, ping) turns solid green with dark ink,
+         so the tunnel shows at a glance; it goes back to the frosted glass the moment the VPN drops. A theme can set
+         "vpn_network_green": false to keep the plain pill. With vpn_pill the separate VPN pill already says it. -->
+    <bool name="vpn_network_green">true</bool>
     <!-- The dock as its own row: a lighter band, no names under the tiles, parked low on the screen with the top
          shelf above it. false makes the dock apps simply the first tiles of one plain grid (still in dock_apps
          order, no empty slots), with names under every tile and the glow behind every focused tile. -->
@@ -448,6 +459,14 @@
          "show_stats": true. Nothing is read, and the clock does not move, while this is false. -->
     <bool name="show_stats">false</bool>
 
+    <!-- Local build: a live weather line under the clock, from Open-Meteo (no key, no account). -->
+    <bool name="weather_line">true</bool>
+    <string name="weather_place">Shabankareh</string>
+    <string name="weather_lat">29.4724</string>
+    <string name="weather_lon">50.9952</string>
+    <!-- Local build: the link's round-trip time after the network name in the Wi-Fi pill. -->
+    <bool name="wifi_ping">false</bool>
+
     <!-- Each team's next game in the F1 panel's place under the clock, rotating with the theme's F1 weekend: the package
          of an add-on that publishes them (the Game Day add-on: io.github.justinnewman.gameday; contract in docs/modules.md).
          Empty = off: nothing is read or watched. The launcher only reads what the add-on publishes and never goes
@@ -504,6 +523,14 @@
          home_idle_clock_minutes). Back keeps working as usual inside apps and Settings; only Home's own Back
          press changes. Off by default (Back does nothing on Home); a theme can set "back_opens_clock": true. -->
     <bool name="back_opens_clock">false</bool>
+    <!-- The clock screensaver over a set of photographs bundled with the app instead of the glow (or Home's
+         wallpaper): one at a time, fading into the next every clock_photos_minutes. Packaged, so no network and no
+         account. Takes precedence over clock_wallpaper. -->
+    <bool name="clock_photos">true</bool>
+    <!-- How dark the photos are behind the clock, 0 to 90 %. -->
+    <integer name="clock_photos_dim">25</integer>
+    <!-- Minutes each photo stays up. -->
+    <integer name="clock_photos_minutes">5</integer>
     <!-- The clock screensaver (Home idle clock and the system screensaver) over Home's wallpaper instead of black with
          a coloured glow. The clock still moves every minute. Can also be set with "clock_wallpaper" in a theme. -->
     <bool name="clock_wallpaper">false</bool>

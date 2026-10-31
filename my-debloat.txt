@@ -1,0 +1,16 @@
+# Custom list for Hisense HiSmartTV A4 (xiaoyushan), based on examples/hisense-hismarttv-a4/debloat.txt
+# Kept on purpose: Netflix, Prime Video, Play Movies, OTA (com.hisense.tv.ota, com.hisense.remoteupgrade).
+# Already disabled earlier and left out here: logreport, storemode, myapplication, hisremotenow, tvrecommendations.
+
+com.google.android.feedback
+com.google.android.tv.bugreportsender
+
+com.google.android.leanbacklauncher.recommendations
+com.google.android.leanbacklauncher
+fusion.android.tv.demo
+com.mstar.android.tv.disclaimercustomization
+android.autoinstalls.config.hisense.xiaoyushan
+
+com.seraphic.browser
+com.google.android.music
+com.jamdeo.tv.mediacenter
