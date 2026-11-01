@@ -3166,6 +3166,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
      */
     private void openNetworkPill() {
         if (!vpnPill) {
+            if (VpnDaemon.vpnUp(this)) {
+                if (sendVpnCommand(R.string.vpn_stop_action)) return;
+            } else if (sendVpnCommand(R.string.vpn_start_action)) {
+                watchVpnStart();
+                return;
+            }
             Intent toggle = vpnToggleIntent();
             if (toggle != null) {
                 if (VpnDaemon.vpnUp(this)) {
@@ -3181,6 +3187,42 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             }
         }
         open(systemIntent(Settings.ACTION_WIFI_SETTINGS));
+    }
+
+    /** Sends vpn_start_action / vpn_stop_action to vpn_app; false when the theme names none. */
+    private boolean sendVpnCommand(int actionRes) {
+        String action = getString(actionRes).trim();
+        if (action.isEmpty() || vpnApp.isEmpty()) return false;
+        sendBroadcast(new Intent(action).setPackage(vpnApp));
+        return true;
+    }
+
+    /**
+     * After a start broadcast: the pill says Connecting… until the VPN network appears, and the app opens instead
+     * if it never does, so a refused start does not look like a dead button.
+     */
+    private void watchVpnStart() {
+        if (vpnBusy) return;
+        vpnBusy = true;
+        updateWifiLabel();
+        new Thread(() -> {
+            long deadline = System.currentTimeMillis() + 15000;
+            while (System.currentTimeMillis() < deadline && !VpnDaemon.vpnUp(this)) {
+                try {
+                    Thread.sleep(300);
+                } catch (InterruptedException e) {
+                    break;
+                }
+            }
+            boolean up = VpnDaemon.vpnUp(this);
+            runOnUiThread(() -> {
+                vpnBusy = false;
+                updateWifiLabel();
+                if (up || isFinishing() || isDestroyed()) return;
+                Intent app = vpnAppIntent();
+                if (app != null) open(app);
+            });
+        }, "vpn-start").start();
     }
 
     /**

@@ -1,8 +1,8 @@
 # HiSmartTV A4: the local build
 
 This fork carries the launcher exactly as it runs on one TV in Shabankareh, Iran: a Hisense
-HiSmartTV A4, kept as Home, with Hiddify as the VPN and Persian dates on screen. Everything on
-this page was checked on that set over ADB, on 31 October 2026.
+HiSmartTV A4, kept as Home, with Karing as the VPN and Persian dates on screen. Everything on
+this page was checked on that set over ADB, from 31 October 2026.
 
 ## The TV
 
@@ -20,7 +20,7 @@ this page was checked on that set over ADB, on 31 October 2026.
 | Input | IR remote, ADB over Wi-Fi on port 5555 |
 | Home | `com.gathin.tvhome/.MainActivity` |
 | Screensaver | `com.gathin.tvhome/.ClockDream` |
-| VPN app | Hiddify 4.1.1 (`app.hiddify.com`), core API on `127.0.0.1:17079` |
+| VPN app | Karing 1.2.25 (`com.nebula.karing`), the 32-bit build, switched by broadcast from the pill |
 | Removed apps | [`my-debloat.txt`](../my-debloat.txt): OTA, Netflix, Prime Video and Play Movies kept on purpose |
 
 The stock home rows, store demo, pre-load auto-installs and log reporting are disabled the same way
@@ -60,19 +60,55 @@ from [Picsum](https://picsum.photos) (Unsplash images, free licence), bundled so
 needs no network and no account. Switches: `clock_photos`, `clock_photos_dim` (percent, 25 here),
 `clock_photos_minutes` (5).
 
+### Netflix button opens VLC
+
+The remote's Netflix button arrives as keycode 265 (`KEYCODE_STEM_1`, the vendor's
+`KEYCODE_MTKIR_NETFLIX`), and the firmware also broadcasts `GLOBAL_BUTTON` with it; with Netflix
+uninstalled the press did nothing. `app_keys` now maps `265:org.videolan.vlc`, and the launcher's
+`InputKeyService` accessibility service, which filters keys system-wide, opens VLC from any app.
+`adb shell input keyevent 265` has no effect here, so the button itself is the check.
+
+Enabling that service once, over ADB:
+
+```sh
+adb shell settings put secure enabled_accessibility_services com.gathin.tvhome/.InputKeyService
+adb shell settings put secure accessibility_enabled 1
+```
+
+The setting survives reboots and updates; a force-stop of the launcher drops it until it is set
+again (or `restore_key_services` is on with `WRITE_SECURE_SETTINGS` granted).
+
 ### VPN from the network pill
 
-The network pill is the VPN switch. While a tunnel is up the whole pill is solid green; pressing
-it while it is down starts the tunnel without Hiddify's UI:
+The network pill is the VPN switch, backed by Karing (1.2.25, the 32-bit `armeabi-v7a` build). While a
+tunnel is up the whole pill is solid green; pressing it stops the tunnel, and pressing the red
+"VPN off" pill starts it, both without the app's UI:
 
-1. the shell's exported `ShortcutActivity` brings Hiddify's background service up;
-2. `VpnDaemon` asks the running core to start over its local gRPC API (`hcore.Core/Start`, h2c on
-   `127.0.0.1:17079`) with an empty request, so the core reuses the config it started last;
-3. the pill reads "Connecting…" until a VPN network actually appears, then turns green.
+1. the pill sends Karing's own automation broadcasts, `com.nebula.karing.action.CONNECT` and
+   `...DISCONNECT`, to `com.nebula.karing`, which `AutomationCommandReceiver` handles in the
+   background;
+2. after a start the pill reads "Connecting…" until a VPN network actually appears, then turns
+   green (it opens Karing if the tunnel never comes up within 15 s).
 
-Pressing the green pill stops the tunnel through the same toggle activity. Holding the pill still
-opens Wi-Fi settings, as upstream. Switches: `vpn_app`, `vpn_toggle_activity`, `vpn_daemon_port`,
-`vpn_network_green`.
+Holding the pill still opens Wi-Fi settings, as upstream. Switches: `vpn_app`,
+`vpn_toggle_activity`, `vpn_start_action`, `vpn_stop_action`, `vpn_daemon_port` (0 here: no gRPC
+core to call), `vpn_network_green`.
+
+Hiddify was removed: its core would not start on this firmware (the app's gRPC port on
+`127.0.0.1` refused every connection), so it could not even import a subscription. Karing imports
+the same Speedur subscription and connects with its auto-select node (Germany, 104 ms).
+
+### SmartTube next to YouTube
+
+The TV's YouTube app keeps its own tile and still opens Google's app. SmartTube, the open-source TV
+client that skips the ads and needs no account, was installed alongside it and shows as its own tile
+in the grid — the YouTube tile is untouched, so both are one press away:
+
+- SmartTube stable 32.68, the `armeabi-v7a` build: the TV's userspace is 32-bit only
+  (`ro.product.cpu.abilist` is `armeabi-v7a,armeabi`), and the arm64 APK fails with
+  `INSTALL_FAILED_NO_MATCHING_ABIS`.
+- The launcher lists it like any other TV app (`org.smarttube.stable`); its tile can be dragged
+  into the dock with the reorder button if it should sit next to YouTube.
 
 ### Smaller changes
 
@@ -112,8 +148,7 @@ JAVA_HOME=<jdk-17> ANDROID_HOME=<sdk> ./gradlew assembleRelease
 |---|---|
 | Weather place, photo interval and dim in the launcher's own settings screen instead of `config.xml` | Planned |
 | Screensaver photographs from a USB stick or a local folder, bundled set as the fallback | Planned |
-| Read VPN state from the core's status API, so the pill answers on press instead of on the next network callback | Planned |
-| Remove Hiddify's brief white "Toggle" screen on a cold service start | Blocked upstream: the activity draws it before the service starts; needs a Hiddify-side change |
+| Read VPN state from Karing's own status instead of the network list, so the pill answers on press | Planned |
 | Reduce cold-boot time to the launcher on the A4 (the first Home after a reboot is slow) | Investigating |
 | Release signing, so updates no longer depend on this Mac's debug key | Planned; one uninstall/reinstall on the TV |
 | Pan directions and weather icons on the screensaver photographs | Nice to have |
@@ -122,10 +157,10 @@ JAVA_HOME=<jdk-17> ANDROID_HOME=<sdk> ./gradlew assembleRelease
 
 ## Caveats seen on this TV
 
-- ADB over Wi-Fi drops the moment Hiddify's tunnel comes up; reconnect with `adb connect` after
-  each start.
-- Hiddify 4.1.1 reuses the profile it started last when the core gets an empty start request. A
-  different Hiddify version may move the port or the semantics; `vpn_daemon_port` and
-  `vpn_toggle_activity` are there to be changed.
-- A stale Hiddify daemon answers "configure tun interface: permission denied"; force-stopping
-  Hiddify and letting the shortcut start it again fixes it.
+- ADB over Wi-Fi stayed up through Karing's tunnel; with Hiddify 4.1.1 every start dropped it, and
+  `adb connect` was needed again.
+- Karing needs its system VPN consent dialog accepted once, from the app. After that the pill's
+  broadcasts work with no UI.
+- Karing reconnects with the node it used last (the subscription's Auto Select), so a start needs
+  no profile argument. `vpn_start_action`, `vpn_stop_action` and `vpn_app` are what to change for
+  another VPN app.

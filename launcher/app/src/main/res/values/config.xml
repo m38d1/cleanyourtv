@@ -216,6 +216,10 @@
          where the firmware hands KEYCODE_GUIDE (172) to the stock launcher and no app ever receives it. Leave empty
          to omit. -->
     <string-array name="app_keys" translatable="false">
+        <!-- Hisense HiSmartTV A4: the remote's Netflix button arrives as 265 (KEYCODE_STEM_1, the vendor's
+             KEYCODE_MTKIR_NETFLIX) and the firmware also broadcasts GLOBAL_BUTTON with it; with Netflix gone the
+             press did nothing. It opens VLC instead. -->
+        <item>265:org.videolan.vlc</item>
     </string-array>
 
     <!-- Package of the stock launcher, for TVs whose firmware turns it back on after it was disabled. XGIMI's
@@ -269,14 +273,19 @@
     <!-- Optional VPN app the network pill opens (hold the pill for Wi-Fi settings), e.g. the package of the
          VPN you use. Empty: the pill opens Wi-Fi settings. The green VPN badge shows for any VPN either way;
          with an app set here, a red "VPN off" badge also shows while no VPN is up. -->
-    <string name="vpn_app" translatable="false">app.hiddify.com</string>
+    <string name="vpn_app" translatable="false">com.nebula.karing</string>
     <!-- Pressing the network pill toggles the VPN through this exported activity of vpn_app instead of opening the
          app. Hiddify's ShortcutActivity switches the tunnel on and off and hides itself again. Empty opens vpn_app. -->
-    <string name="vpn_toggle_activity" translatable="false">app.hiddify.com/com.hiddify.hiddify.ShortcutActivity</string>
+    <string name="vpn_toggle_activity" translatable="false">com.nebula.karing/com.nebula.karing.MainActivity</string>
     <!-- The toggle activity only starts Hiddify's background service; the tunnel itself is started by the app over
          the core's local gRPC port (Hiddify 4.1.1: 127.0.0.1:17079), and the core reuses the config it started
          last. 0 only opens the app. -->
-    <integer name="vpn_daemon_port">17079</integer>
+    <integer name="vpn_daemon_port">0</integer>
+    <!-- With a daemon port, a start is a gRPC call. Without one, these package broadcasts of vpn_app start and stop
+         the tunnel from the pill itself: Karing's AutomationCommandReceiver takes CONNECT and DISCONNECT, so the
+         pill needs no UI and no core port. Empty falls back to vpn_toggle_activity, then vpn_app. -->
+    <string name="vpn_start_action" translatable="false">com.nebula.karing.action.CONNECT</string>
+    <string name="vpn_stop_action" translatable="false">com.nebula.karing.action.DISCONNECT</string>
     <!-- The VPN as its own pill after the network pill, instead of a badge inside it: solid green with a lock while a
          VPN is up, solid red "VPN off" while none is and vpn_app is installed. Pressing it opens vpn_app (without it,
          the App library, or VPN settings when app_library is off), and the network pill then always opens Wi-Fi
